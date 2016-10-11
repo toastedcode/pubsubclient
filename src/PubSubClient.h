@@ -11,6 +11,7 @@
 #include "IPAddress.h"
 #include "Client.h"
 #include "Stream.h"
+#include "PubSubListener.h"  // TOAST
 
 #define MQTT_VERSION_3_1      3
 #define MQTT_VERSION_3_1_1    4
@@ -23,7 +24,7 @@
 
 // MQTT_MAX_PACKET_SIZE : Maximum packet size
 #ifndef MQTT_MAX_PACKET_SIZE
-#define MQTT_MAX_PACKET_SIZE 128
+#define MQTT_MAX_PACKET_SIZE 256  // TOAST
 #endif
 
 // MQTT_KEEPALIVE : keepAlive interval in Seconds
@@ -99,6 +100,7 @@ private:
    uint16_t port;
    Stream* stream;
    int _state;
+   PubSubListener* listener;  // TOAST
 public:
    PubSubClient();
    PubSubClient(Client& client);
@@ -119,6 +121,7 @@ public:
    PubSubClient& setServer(uint8_t * ip, uint16_t port);
    PubSubClient& setServer(const char * domain, uint16_t port);
    PubSubClient& setCallback(MQTT_CALLBACK_SIGNATURE);
+   PubSubClient& setListener(PubSubListener* listener);  // TOAST
    PubSubClient& setClient(Client& client);
    PubSubClient& setStream(Stream& stream);
 

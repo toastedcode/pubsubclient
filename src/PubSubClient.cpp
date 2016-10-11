@@ -12,12 +12,14 @@ PubSubClient::PubSubClient() {
     this->_client = NULL;
     this->stream = NULL;
     setCallback(NULL);
+    setListener(NULL);  // TOAST
 }
 
 PubSubClient::PubSubClient(Client& client) {
     this->_state = MQTT_DISCONNECTED;
     setClient(client);
     this->stream = NULL;
+    setListener(NULL);  // TOAST
 }
 
 PubSubClient::PubSubClient(IPAddress addr, uint16_t port, Client& client) {
@@ -25,12 +27,14 @@ PubSubClient::PubSubClient(IPAddress addr, uint16_t port, Client& client) {
     setServer(addr, port);
     setClient(client);
     this->stream = NULL;
+    setListener(NULL);  // TOAST
 }
 PubSubClient::PubSubClient(IPAddress addr, uint16_t port, Client& client, Stream& stream) {
     this->_state = MQTT_DISCONNECTED;
     setServer(addr,port);
     setClient(client);
     setStream(stream);
+    setListener(NULL);  // TOAST
 }
 PubSubClient::PubSubClient(IPAddress addr, uint16_t port, MQTT_CALLBACK_SIGNATURE, Client& client) {
     this->_state = MQTT_DISCONNECTED;
@@ -38,6 +42,7 @@ PubSubClient::PubSubClient(IPAddress addr, uint16_t port, MQTT_CALLBACK_SIGNATUR
     setCallback(callback);
     setClient(client);
     this->stream = NULL;
+    setListener(NULL);  // TOAST
 }
 PubSubClient::PubSubClient(IPAddress addr, uint16_t port, MQTT_CALLBACK_SIGNATURE, Client& client, Stream& stream) {
     this->_state = MQTT_DISCONNECTED;
@@ -45,6 +50,7 @@ PubSubClient::PubSubClient(IPAddress addr, uint16_t port, MQTT_CALLBACK_SIGNATUR
     setCallback(callback);
     setClient(client);
     setStream(stream);
+    setListener(NULL);  // TOAST
 }
 
 PubSubClient::PubSubClient(uint8_t *ip, uint16_t port, Client& client) {
@@ -52,12 +58,14 @@ PubSubClient::PubSubClient(uint8_t *ip, uint16_t port, Client& client) {
     setServer(ip, port);
     setClient(client);
     this->stream = NULL;
+    setListener(NULL);  // TOAST
 }
 PubSubClient::PubSubClient(uint8_t *ip, uint16_t port, Client& client, Stream& stream) {
     this->_state = MQTT_DISCONNECTED;
     setServer(ip,port);
     setClient(client);
     setStream(stream);
+    setListener(NULL);  // TOAST
 }
 PubSubClient::PubSubClient(uint8_t *ip, uint16_t port, MQTT_CALLBACK_SIGNATURE, Client& client) {
     this->_state = MQTT_DISCONNECTED;
@@ -65,6 +73,7 @@ PubSubClient::PubSubClient(uint8_t *ip, uint16_t port, MQTT_CALLBACK_SIGNATURE, 
     setCallback(callback);
     setClient(client);
     this->stream = NULL;
+    setListener(NULL);  // TOAST
 }
 PubSubClient::PubSubClient(uint8_t *ip, uint16_t port, MQTT_CALLBACK_SIGNATURE, Client& client, Stream& stream) {
     this->_state = MQTT_DISCONNECTED;
@@ -72,6 +81,7 @@ PubSubClient::PubSubClient(uint8_t *ip, uint16_t port, MQTT_CALLBACK_SIGNATURE, 
     setCallback(callback);
     setClient(client);
     setStream(stream);
+    setListener(NULL);  // TOAST
 }
 
 PubSubClient::PubSubClient(const char* domain, uint16_t port, Client& client) {
@@ -79,12 +89,14 @@ PubSubClient::PubSubClient(const char* domain, uint16_t port, Client& client) {
     setServer(domain,port);
     setClient(client);
     this->stream = NULL;
+    setListener(NULL);  // TOAST
 }
 PubSubClient::PubSubClient(const char* domain, uint16_t port, Client& client, Stream& stream) {
     this->_state = MQTT_DISCONNECTED;
     setServer(domain,port);
     setClient(client);
     setStream(stream);
+    setListener(NULL);  // TOAST
 }
 PubSubClient::PubSubClient(const char* domain, uint16_t port, MQTT_CALLBACK_SIGNATURE, Client& client) {
     this->_state = MQTT_DISCONNECTED;
@@ -92,6 +104,7 @@ PubSubClient::PubSubClient(const char* domain, uint16_t port, MQTT_CALLBACK_SIGN
     setCallback(callback);
     setClient(client);
     this->stream = NULL;
+    setListener(NULL);  // TOAST
 }
 PubSubClient::PubSubClient(const char* domain, uint16_t port, MQTT_CALLBACK_SIGNATURE, Client& client, Stream& stream) {
     this->_state = MQTT_DISCONNECTED;
@@ -99,6 +112,7 @@ PubSubClient::PubSubClient(const char* domain, uint16_t port, MQTT_CALLBACK_SIGN
     setCallback(callback);
     setClient(client);
     setStream(stream);
+    setListener(NULL);  // TOAST
 }
 
 boolean PubSubClient::connect(const char *id) {
@@ -305,13 +319,11 @@ boolean PubSubClient::loop() {
                 lastInActivity = t;
                 uint8_t type = buffer[0]&0xF0;
                 if (type == MQTTPUBLISH) {
-                    if (callback) {
-                        uint16_t tl = (buffer[llen+1]<<8)+buffer[llen+2];
-                        char topic[tl+1];
-                        for (uint16_t i=0;i<tl;i++) {
-                            topic[i] = buffer[llen+3+i];
-                        }
-                        topic[tl] = 0;
+                    if (callback || listener) {  // TOAST
+                        uint16_t tl = (buffer[llen+1]<<8)+buffer[llen+2]; /* topic length in bytes */
+                        memmove(buffer+llen+2,buffer+llen+3,tl); /* move topic inside buffer 1 byte to front */
+                        buffer[llen+2+tl] = 0; /* end the topic as a 'C' string with \x00 */
+                        char *topic = (char*) buffer+llen+2;
                         // msgId only present for QOS>0
                         if ((buffer[0]&0x06) == MQTTQOS1) {
                             msgId = (buffer[llen+3+tl]<<8)+buffer[llen+3+tl+1];
@@ -327,7 +339,15 @@ boolean PubSubClient::loop() {
 
                         } else {
                             payload = buffer+llen+3+tl;
-                            callback(topic,payload,len-llen-3-tl);
+                            // TOAST
+                            if (callback)
+                            {
+                               callback(topic,payload,len-llen-3-tl);
+                            }
+                            else if (listener)
+                            {
+                               listener->callback(topic, payload, len-llen-3-tl);
+                            }
                         }
                     }
                 } else if (type == MQTTPINGREQ) {
@@ -573,6 +593,13 @@ PubSubClient& PubSubClient::setServer(const char * domain, uint16_t port) {
 PubSubClient& PubSubClient::setCallback(MQTT_CALLBACK_SIGNATURE) {
     this->callback = callback;
     return *this;
+}
+
+// TOAST
+PubSubClient& PubSubClient::setListener(PubSubListener* listener)
+{
+   this->listener = listener;
+   return *this;
 }
 
 PubSubClient& PubSubClient::setClient(Client& client){
